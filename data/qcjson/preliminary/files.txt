@@ -1,0 +1,10 @@
+CELL_molden.qcjson
+GTO_gamess.qcjson
+GTO_gaussian.qcjson
+GTO_jaguar.qcjson
+GTO_molden.qcjson
+GTO_nwchem.qcjson
+GTO_webmo.qcjson
+STO_molden.qcjson
+STO_webmo.qcjson
+VIB_nwchem.qcjson

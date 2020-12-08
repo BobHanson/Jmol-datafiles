@@ -1,0 +1,20 @@
+#b3lyp/gen pseudo=cards symm=loose freq pop=nbo7read
+
+WH6...b3lyp/vdz
+
+0  1
+W     0.000000    0.000000    0.021941
+H     0.000000    0.000000    1.757936
+H     0.000000    1.529392   -0.676319
+H     1.454538    0.472608   -0.676319
+H     0.898954   -1.237304   -0.676319
+H    -1.454538    0.472608   -0.676319
+H    -0.898954   -1.237304   -0.676319
+
+@/home/ericg/basis/w-vdz-pp.gbs /n
+@/home/ericg/basis/h-vdz.gbs /n
+
+@/home/ericg/basis/w-vdz-pp.ecp /n
+
+$nbo archive file=wh6-a $end
+

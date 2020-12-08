@@ -1,0 +1,344 @@
+// MACRO CIP
+// CIP.spt -- test suite for Jmol CIPChirality.java
+// Bob Hanson hansonr@stolaf.edu 4/18/2017 7:44:43 AM
+// updated 4/29/2017 1:26:31 PM
+// 5/21/2017 4:57:14 PM -- adds AY-236.193,194,195,196 spiro
+// 5/27/2017 10:26:49 AM -- finalized - full validation    
+
+//sourcedir = "cip" // local version
+sourcedir = "https://www.stolaf.edu/people/hansonr/jmol/cip"
+
+
+// Check a set of Jmol 3D files -- first line includes "CIP:xxxxx;"
+
+function checkCIP(info, n) {
+  if (0 + info > 0) {
+    n = info
+    info = thisSDF
+  }
+  thisSDF = info
+  var first = (n ? n : info.first)
+  var last = (n ? n : info.last)
+  for (var i = first; i <= last; i++) {
+    if (info.skip & i) continue
+//    load @{info.sdffile} @i
+//    var bb = _M.molData.ref_pname_pin
+    var f = sourceDir + "/testSuites/"+info.id+"/" + info.id + "_" + (("000" + i)%-3) + ".mol";
+    checkrs(f, 1, "*")
+//    var rs = {chirality != ""}.label("%i%[chirality]").join(" ")
+//    frame title @{"CIP:" + rs + "; BB:" + bb + ";"}
+//    write coord @_modelFile
+  }
+}
+
+// check a set of files in a directory based on a file listing with annotations
+
+function checkRdir(name, type) {
+  var x = load(sourceDir + "/" + name + ".txt").lines
+  for (var f in x) {
+    f = f.trim();
+    if (f == "#QUIT") break
+    if (f == "#stop") exit
+    if (!f || f.find("#") == 1) continue
+    if (f.find("$") != 1) 
+      f = sourceDir + "/" + name + "/" + f      
+    if (type)
+      checkRS(f, type)
+    else
+      checkRS(f)
+  }
+}
+  
+function showRS() {
+  select !_H
+  color labels black
+  background labels yellow
+  label %a
+  refresh
+  select *
+  calculate chirality; 
+  label ""
+  set labelfor {chirality != ''} "%[chirality]"
+  set labelfor {chirality != '' && ciprule != '1a'} "%[chirality](%[ciprule])"
+  font label 25
+  set labelfront
+  set labeloffset 10 10
+  print {*}.chirality.join("")
+}
+
+
+nOK = 0;
+
+thisN = 0;
+stopped = false;
+
+function checkRS(fname, n, key, isQuiet) {
+  if (_argCount == 2 && 0 + n != n) {
+    key = n;
+    n = 0;
+  }
+  if (!n)
+    n = 1;
+  var doCheck = !!key
+  var a = 0;
+  fname = fname.replace("://",":/")
+  if (fname.find("//")) {
+    fname = fname.split("//")
+    key = fname[2]
+    fname = fname[1]
+    doCheck = key
+  }
+  fname = fname.replace(":/", "://")
+  if (thisN && (nOK + 1) != thisN) {
+   nOK++;
+   return;
+  }
+  print "loading " + (nOK + 1) + ": " + fname + " " + n + " " +  key + " " + docheck
+  set useMinimizationThread false
+  load @fname @n filter "2D"
+  if (!{_H})  calculate hydrogens
+  set labelfor {_C} "%[atomname]"
+  rotate best
+  color labels black
+  background label yellow
+  refresh
+  if (a) {
+    select atomno = @a
+  } else {
+    calculate chirality
+    select (chirality != "")
+  }
+  set labelfor {_C} ""  
+  set labelfor {selected} "%[atomname] %[chirality]"
+  set labelfor {selected && ciprule != '1a'} "%[atomname] %[chirality](%[ciprule])"
+  set labelfront
+  set labeloffset 10 10
+    
+  var rs = {selected}.label("%[chirality]").join("")
+  var isok = true
+  var isjmol = false
+  if (doCheck) {
+    var ref = ""
+    if (docheck != key) {
+      if (_M.molData) {
+        // accepts data in various forms
+        ref = _M.molData["chiral_atoms"].replace("\n","").replace(" ","") + _M.molData["stereounits"] + _M.molData["stereo"]
+      } else if (_modelTitle.find("CIP:")) {
+        ref = _modelTitle.split("CIP:")[2].split(";")[1]
+        isjmol = true
+      }
+    }
+    if (ref) {
+      rs = ""
+      if (isjmol){
+        rs = {selected}.label("%i%[chirality]").join(" ")
+      } else if (ref.find("focus:")) {
+        // MY64
+        var tokens = ref.split("focus:");
+        ref = ""
+        var refs = []
+        for (var focus in tokens) {
+          if (!focus) continue
+          var items = focus.split("descriptor:")
+          var atoms = items[1].split(true)
+          rs = items[2].trim()
+          var na = atoms.length
+          refs[1 + atoms[1]] = rs // first
+          refs[1 + atoms[0]] = rs // last
+        }
+        var na = refs.length
+        for (var j = 1; j <= na; j++) {
+          if (refs[j])
+            ref += "" + j + refs[j]
+        }
+        rs = ""
+      } else if (ref.find(",")) {
+        rs = {!_H}.chirality.join(",").trim(",")
+        ref = ref.trim(",")
+      } else if (_M.molData["chiral_atoms"]) {
+        rs = ""
+      } else {
+        rs = {!_H}.chirality.join("")
+      }
+      // switch to BB2013 preferred name format 
+      key = ref.replace("Sa","P").replace("Ra","M").replace("sa","p").replace("ra","m");
+      if (!rs)
+        rs = {selected}.label("%i%[chirality]").join("")
+    } else if (key == "*") {
+      key = ""
+    }
+    if (key.find(",") && !rs.find(","))
+      key = key.replace(",","")
+    // oddly, "like" in Jmol means "isExactly"; just is
+    if (key like rs) {
+      nOK++
+      print _M.molData
+      print "" + nOK + " OK\t" + fname + "\t" + rs
+    } else {
+      refresh 
+      var ans = "yes"
+      if (isQuiet) {
+        isOK = false;
+        print ',"' + n + '":"' + rs + '" // ' + key  
+      } else {
+        var s = "" + n + "??\t" + fname + "\t // found " + rs + "; should be " + key
+        print s
+//        ans = "yes"
+        ans = prompt(s.replace("\t"," ") + " \n\n continue?", "yes")
+      }
+      if (ans != "yes") quit 
+    }
+  } else {
+      print fname + "\t" + rs
+  }
+  select *
+  refresh
+  return isOK
+}
+
+///// older code for extracting from SDF files
+
+function findSDF(info, what) {
+  if (!what) {
+    what = info
+    info = ""
+  }
+  if (!info) info = thisSDF
+  load @{info.sdffile}
+  var n = {*}.model.max
+  var data = getProperty("auxiliaryInfo")
+  var found = []
+  var ivals = []
+  for (var i = 1; i <= n; i++) {
+    var a = data.models[i].molData
+    if (a.find(what)) {
+      print "" + i + ": " + a
+      found.push(a)
+      ivals.push(i)
+    }
+  }
+  print "" + found.length + " found for " + what + ": " + format("json", ivals) 
+}
+
+function bhtest(info, n) {
+  // bhtest 3
+  // bhtest MV64 3
+  if (info) {
+    if (!n) {
+      n = info
+      info = ""
+    }
+  }
+  checkCIP((info ? info : thisSDF),n)
+  label %a;background labels yellow
+  refresh
+  select *
+  //set loglevel 6
+  print _M.molData
+  print {*}.chirality.join(",").trim(",")
+  //print {*}.chirality.pivot
+  print {*}.find("SMILES")
+  showRS
+}
+
+
+/////////////////////////////////////////////////////////////////////
+//
+// structures from a multi-model SDF file that may have stereochemistry annotations
+//
+// @3D means there is a file testSuites/3D/test<n>.mol
+//
+// Test Suite AY-236 (Andrey Yerin, ACD/Labs, Moscow, Russia)
+//
+// BB errata page: http://www.chem.qmul.ac.uk/iupac/bibliog/BBerrors.html
+
+AY236 = [
+  id:"AY236",
+  sdffile:"c:/temp/P-9-examples-stereo.sdf",
+  first: 1,
+  last:236,
+  skip:({27 229}) || // ignore -- BB has E/Z only; missing chirality
+         ({95 96 98 99 100 101 102 103 104 108 109 110 111 112 200}) || // trigonal planar, square planar, or hypervalent
+         ({212 213})|| // chiral conformation 1,4-benzene in a ring
+         ({38}) // ignoring -- 38: Mancude for cyclopentadienyl anion
+]
+
+//
+// Test Suite MV-64 (Mikko Vainio,  ®bo Akademi University, Turku, Finland)
+//
+
+MV64 = [
+  id:"MV64",
+  sdffile:"cip/testSuites/MV64/stereo_test_cases.sdf",
+  first: 1,
+  last: 64,
+  skip: ({34 35 36 37}) // pentacoordinate P 
+]
+
+//
+// Test Suite MV-116 (Mikko Vainio,  ®bo Akademi University, Turku, Finland)
+//
+// ZIP file cleaned of redundant 2D files, hypervalent models, and undefined stereochemistry, planar chirality
+
+MV116 = [
+  id:"MV116",
+  zipfile:"testSuites/MV116/cip_examples.zip",
+  first: 1,
+  last: 80,
+  skip: ({})
+]
+
+thisSDF = AY236
+
+print "checkCIP loaded. presumes local AY236 and MV64. Examples:"
+print "\tcheck3D(AY236)"
+print "\tcheck3D(MV116)"
+print "\tcheck3D(MV64)"
+print "\tbhtest 53"
+print "\tload cip/seqcis/RSSsSRR.mol"
+print "\twriteMol n"
+print "\tshowRS"
+
+/////////////////////////////////////////////////////////////////////
+
+var ans = prompt("Do a special test?", "no")
+if (ans == "null") quit
+if (ans == "yes") {
+  set debughigh
+  bhtest 171
+  showrs
+  quit
+}
+
+// full test run
+
+checkCIP(AY236)
+quit
+checkCIP(MV116)
+checkCIP(MV64)
+checkRdir("bytype/centres", "*")
+checkRdir("bytype/more", "*")
+
+print "DONE: " + nOK
+
+
+/**
+
+// individual checks 
+
+// checkRS("$glucose", "RSRR")
+checkRS("$(2S,3R)-2,3-oxiranediol", "SR")
+checkRS("$(S)-2-butanol", "S")
+checkRS("$(R)-2-butanol", "R")
+checkRS("$(2S,3R)-2,3-butanediol", "SR")
+checkRS("$(2S,3S)-2,3-butanediol", "SS")
+checkRS("$(2R,3R)-2,3-butanediol", "RR")
+checkRS("$(2R,3S)-2,3-butanediol", "RS")
+checkRS("$1,4-dimethylcyclohexane", "")
+checkRS("$cholesterol", "RRSSSRSR") // (3S,8S,9S,10R,13R,14S,17R) and sidechain (R)
+checkRS("==ta1", "SSRSRSSRSRS") // taxol (1S,2S,3R,4S,7R,9S,10S,12R,15S) and sidechain (2R,3S)
+checkRS("cip/RS/(1S,5R)-bicyclo[3.1.0]hex-2-ene_3D.mol")
+
+
+
+
